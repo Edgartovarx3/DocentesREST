@@ -2,26 +2,17 @@ from flask import Flask,url_for, render_template, request, redirect,flash,jsonif
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.serving import run_simple
 from werkzeug.debug import DebuggedApplication
-from sqlalchemy.exc import IntegrityError
-from Database.Usuario import Usuario
 from Database.TemasInteres import TemasInteres
+from Database.Usuario import Usuario
 from Database import db
-from Database.Publicaciones import Publicaciones
-from Database.Asesores import Asesores
-from Database.TrayectoriaProfesional import TrayectoriaProfesional
 from flask_httpauth import HTTPBasicAuth
 
 
-app = Flask(__name__)
+@app = Flask(__name__)
 
-app.config.from_pyfile('config.py')
+@app.config.from_pyfile('config.py')
 db.init_app(app)
 auth = HTTPBasicAuth()
-
-
-
-########################Todo lo de la Autenticacion##################################
-
 
 @auth.verify_password
 def verify_password(correo, password):
@@ -54,22 +45,19 @@ def login():
     # Obtener el usuario autenticado
     usuario = auth.current_user()
     return jsonify({'message': 'Inicio de sesión exitoso', 'usuario': usuario.to_json()})
-######################################################################################################################
 
-
-
-
-###################Usuarios#####################3
 @app.route('/usuarios', methods=['GET'])
+@auth.login_required(role='A')
 def consulta_general():
     usuario = Usuario()
     respuesta = usuario.consultaGeneral()
     return jsonify(respuesta)
 
-@app.route('/consultarUsuario/<int:id_usuario>', methods=['GET'])
-def consultar_usuario(id_usuario):
+@app.route('/consultarUsuario', methods=['GET'])
+@auth.login_required(role=['A','D'])
+def consultar_usuario():
     usuario=Usuario()
-    return (usuario.consultar_usuario(id_usuario))
+    return (usuario.consultar_usuario(g.current_user.idUsuario))
 
 @app.route('/agregarUsuario', methods=['POST'])
 @auth.login_required(role='A')
@@ -78,19 +66,21 @@ def agregarUsuario():
     json_data = request.get_json()
     usuario = Usuario()
     # Devuelve una respuesta exitosa
-    return  usuario.agregar(json_data)
+    return  usuario.agregar(json_data,g.current_user.idUsuario)
 
-@app.route('/usuarios/<int:idUsuario>', methods=['PUT'])
-def actualizar_usuario(idUsuario):
+@app.route('/usuarios', methods=['PUT'])
+@auth.login_required(role='A')
+def actualizar_usuario():
     usuario=Usuario()
 
-    return usuario.Actualizar(idUsuario)
+    return usuario.Actualizar(g.current_user.idUsuario)
 
-@app.route('/eliminarUsuario/<int:id_usuario>', methods=['DELETE'])
-def eliminar_usuario(id_usuario):
+@app.route('/eliminarUsuario/<int:usuarioid>', methods=['DELETE'])
+@auth.login_required(role='A')
+def eliminar_usuario(usuarioid):
     usuario=Usuario()
     try:
-        respuesta = usuario.eliminar_por_id(id_usuario)
+        respuesta = usuario.eliminar_por_id(usuarioid)
         return respuesta
     except Exception as e:
         return jsonify({
@@ -98,57 +88,7 @@ def eliminar_usuario(id_usuario):
             'mensaje': 'Error al eliminar el usuario',
             'detalle': str(e)
         })
-################################################
 
-
-
-
-
-
-##################publicaciones#######################
-
-@app.route('/agregarPublicacion', methods=['POST'])
-@auth.login_required(role='D')
-def agregarPublicacion():
-
-        json_data = request.get_json()
-
-        # Crea una instancia de la clase Publicaciones
-        publicacion = Publicaciones()
-        # Devuelve una respuesta exitosa
-        return publicacion.agregarPublicacion(json_data)
-
-
-
-#####################################################
-
-######################Asesores###############################
-
-#####################################################
-
-#########################Trayectoria Profesional###########################
-
-@app.route('/consulta/Trayectoria', methods=['GET'])
-def consulta_general_trayectoria():
-    trayectoria_profesional = TrayectoriaProfesional()
-    respuesta = trayectoria_profesional.consultaGeneral()
-    return jsonify(respuesta)
-
-
-@app.route('/agregarTrayectoria', methods=['POST'])
-@auth.login_required(role='D')
-def agregarTrayectoria():
-    
-    # Obtén los datos del formulario JSON
-    json_data = request.get_json()
-    trayectoriaProfesional = TrayectoriaProfesional()
-    # Devuelve una respuesta exitosa
-    return  trayectoriaProfesional.agregar_trayectoria_profesional(json_data,g.current_user.idUsuario)
-
-####################################################
-
-
-######################TemasInteres################################
 @app.route('/temasinteres/consulta/<int:tema_id>', methods=['GET'])
 @auth.login_required
 def consultarTemasInteres():
@@ -181,7 +121,6 @@ def consultarTemaInteres(tema_id):
     temas_interes = TemasInteres()
     return temas_interes.consultarTemaInteres(tema_id, g.current_user.idUsuario)
 
-#################################################################
 
 if __name__ == '__main__':
     app.debug = True
